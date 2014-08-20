@@ -96,7 +96,7 @@ Msg_Header*  new_OTA_MSG_Header(Msg_Header* p, BYTE type, BYTE event_code, UInt1
 	p->event_code = event_code;
 	p->seq_id = seq_id;
 
-    p->version = _MAJOR_VERSION | _MINOR_VERSION;
+    p->version = _MAJOR_VERSION <<4 | _MINOR_VERSION;
 
 
 

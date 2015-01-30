@@ -49,6 +49,8 @@
 #define  	MOBILE_ORIGINATED_ACK  				0xBB
 #define  	MOBILE_TERMINATED_EVENT				0xCC
 #define  	MOBILE_TERMINATED_ACK 				0xDD
+#define 	MOBILE_ORIGINATED_MAILBOX_REQ			0xEE
+#define		MOBILE_ORIGINATED_MAILBOX_ACK			0xFF
 
 
 #ifndef		_MAJOR_VERSION
@@ -63,7 +65,6 @@
 
 #define 	OBJ_BYTE_SIZE			3
 #define     HEADER_SIZE             13
-
 
 
 typedef unsigned char 				BYTE;
@@ -90,7 +91,9 @@ enum _MESSAGE_TYPE {
 		_MOBILE_ORIGINATED_EVENT = 0xAA,
 		_MOBILE_ORIGINATED_ACK = 0xBB,
 		_MOBILE_TERMINATED_EVENT = 0xCC,
-		_MOBILE_TERMINATED_ACK = 0xDD
+		_MOBILE_TERMINATED_ACK = 0xDD,
+		_MOBILE_ORIGINATED_MAILBOX_REQ = 0xEE,
+		_MOBILE_ORIGINATED_MAILBOX_ACK = 0xFF
 	};
 
 typedef enum _MESSAGE_TYPE MESSAGE_TYPE;
@@ -179,6 +182,19 @@ typedef enum _OBJTYPE_DEF OBJ_TYPE;
 	typedef  enum SUB_CONTENT_TYPE _SUB_CONTENT_TYPE;
 
 
+        enum  MB_COMMAND 
+	{
+		SET_MT_ROUTE = 1
+	};
+	typedef enum MB_COMMAND MB_COMMAND; 
+
+        enum  MT_ROUTE_TYPE 
+	{
+		TCP=1,
+		UDP=2,
+		SMS=3
+	};
+	typedef enum MT_ROUTE_TYPE MT_ROUTE_TYPE;
 
     struct Object;
 
@@ -379,6 +395,11 @@ typedef enum _OBJTYPE_DEF OBJ_TYPE;
 			OBJ_ID*		 oid;
 			OTA_Object*	 obj;
 		} objlist;
+
+		BYTE mb_command_count; 
+		BYTE mb_command;
+		BYTE mb_route_type;
+		BYTE mb_mail_count; 
 		BYTE crc;
 
 		void (*print) (struct OTA_MSG *);
@@ -398,9 +419,9 @@ typedef enum _OBJTYPE_DEF OBJ_TYPE;
 		int (*size)					(struct OTA_MSG*);
 		OBJ_ID* (*getOids)			(struct OTA_MSG*);
 		OTA_Object* (*getObjs)		(struct OTA_MSG*);
-
-
-
+		
+		BYTE (*getMailCount) 		(struct OTA_MSG*);
+		void (*setMTRoute) 		(struct OTA_MSG*, MT_ROUTE_TYPE);
 	};
 
 	typedef struct OTA_MSG  OTA_Message;

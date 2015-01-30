@@ -29,9 +29,11 @@ ULong getMsgTime(OTA_Message* p);
 int MsgObjCnt(OTA_Message* p);
 int get_Msg_Size(OTA_Message* p);
 
-OBJ_ID* getMsgOids			(struct OTA_MSG*);
+OBJ_ID* getMsgOids		(struct OTA_MSG*);
 OTA_Object* getMsgObjs		(struct OTA_MSG*);
 
+BYTE _getMailCount 		(struct OTA_MSG*);
+void _setMTRoute		(struct OTA_MSG*, MT_ROUTE_TYPE route_type);
 
 
 
@@ -50,6 +52,10 @@ OTA_Message* new_OTA_Message (MESSAGE_TYPE msgtype)
 
 		p->crc = 0;
 		p->obj_cnt = 0;
+		p->mb_command_count = 0; 
+		p->mb_command = 0;
+                p->mb_route_type = 0;
+		p->mb_mail_count = 0; 
 		p->print = print_Message;
 		p->set_Seq_ID = Msg_set_Seq_ID;
 		p->get_Seq_ID = Msg_get_Seq_ID;
@@ -73,24 +79,68 @@ OTA_Message* new_OTA_Message (MESSAGE_TYPE msgtype)
 			p->getObjs = getMsgObjs;
 			p->add_objid = NULL;
 			p->getOids = NULL;
-
+			p->setMTRoute = NULL; 
+			p->getMailCount = NULL;
 			break;
+
 		case _MOBILE_TERMINATED_EVENT:
 			p->add_objid = Msg_Add_OID;
 			p->getOids = getMsgOids;
 			p->getObjs = NULL;
 			p->add_obj = NULL;
-
+			p->setMTRoute = NULL; 
+			p->getMailCount = NULL;
 			break;
+
 		case _MOBILE_TERMINATED_ACK:
 			p->add_objid = NULL;
 			p->add_obj = NULL;
 			p->getOids = NULL;
 			p->getObjs = NULL;
+			p->setMTRoute = NULL; 
+			p->getMailCount = NULL;
 			break;
+
+		case _MOBILE_ORIGINATED_MAILBOX_REQ:
+                        p->add_objid = NULL;
+                        p->add_obj = NULL;
+                        p->getOids = NULL;
+                        p->getObjs = NULL;
+			p->setMTRoute = _setMTRoute; 
+			p->getMailCount = NULL;
+                        break;
+
+		case _MOBILE_ORIGINATED_MAILBOX_ACK:
+                        p->add_objid = NULL;
+                        p->add_obj = NULL;
+                        p->getOids = NULL;
+                        p->getObjs = NULL;
+			p->setMTRoute = NULL; 
+			p->getMailCount = _getMailCount;
+                        break;
+
 		}
 		p->updateCRC(p);
 		return p;
+
+}
+
+BYTE _getMailCount (struct OTA_MSG* m )
+{
+	if(m->type(m) != _MOBILE_ORIGINATED_MAILBOX_ACK)
+		return 0;
+
+	return m->mb_mail_count;
+}
+ 
+void _setMTRoute  (struct OTA_MSG* m, MT_ROUTE_TYPE route_type)
+{
+
+	if(m->type(m) != _MOBILE_ORIGINATED_MAILBOX_REQ)
+		return;
+	m->mb_command_count++; 
+        m->mb_command = SET_MT_ROUTE;
+	m->mb_route_type = route_type; 
 
 }
 
@@ -261,11 +311,18 @@ void print_Message(OTA_Message* p){
 	case _MOBILE_TERMINATED_ACK:
 		msghead = "MOBILE TERMINATED ACK";
 		break;
+	case _MOBILE_ORIGINATED_MAILBOX_REQ:
+		msghead = "MOBILE ORIGINATED MAILBOX REQUEST";
+		break;
+	case _MOBILE_ORIGINATED_MAILBOX_ACK:
+		msghead = "MOBILE ORIGINATED MAILBOX ACK";
+		break;
 	}
 	printf("<%s>\n", msghead);
 	p->header.print (&(p->header));
 
-	if(type != _MOBILE_TERMINATED_ACK)
+	if(type != _MOBILE_TERMINATED_ACK && type != _MOBILE_ORIGINATED_MAILBOX_REQ &&
+		type != _MOBILE_ORIGINATED_MAILBOX_ACK)
 		printf("\t<OBJ CNT=%d/>\n", p->obj_cnt);
 
 
@@ -290,6 +347,20 @@ void print_Message(OTA_Message* p){
 			id = id->next;
 		}
 		break;
+
+	case _MOBILE_ORIGINATED_MAILBOX_REQ:
+		if(p->mb_command_count > 0)
+		{
+			printf("\t\t<MB_COMMAND_COUNT = %d/>\n", p->mb_command_count); 
+			printf("\t\t<MB_COMMAND = %d/>\n", p->mb_command);
+			printf("\t\t<MT_ROUTE = %d/>\n", p->mb_route_type); 
+		}
+		break;
+
+	case _MOBILE_ORIGINATED_MAILBOX_ACK:
+		printf("\t\t<MAIL_COUNT = %d/>\n", p->mb_mail_count); 
+		break;
+
 	default:
 		break;
 
@@ -406,10 +477,33 @@ BYTEARRAY*  Msg_getBytes(OTA_Message* p)
     	buff = header;
     break;
 
+
+    case _MOBILE_ORIGINATED_MAILBOX_REQ:
+	if(p->mb_command_count > 0)
+           buff = new_BYTEARRAY(HEADER_SIZE+3); // 	
+	else
+	   buff = new_BYTEARRAY(HEADER_SIZE+1);
+
+    	buff->put(buff, header, 0);
+    	header->Delete(header);
+    	buff->data[HEADER_SIZE] = p->mb_command_count;
+	if(p->mb_command_count > 0)
+        {
+		buff->data[HEADER_SIZE+1] = p->mb_command;
+		buff->data[HEADER_SIZE+2] = p->mb_route_type; 
+	}
+	break;
+
+    case _MOBILE_ORIGINATED_MAILBOX_ACK:
+        buff = new_BYTEARRAY(HEADER_SIZE+1);
+        buff->put(buff, header, 0);
+        header->Delete(header);
+        buff->data[HEADER_SIZE] = p->mb_mail_count;
+        break;
+
     default:
     	break;
     }
-
 
 
 	crc = getCRC8(buff->data, buff->size);
@@ -497,7 +591,8 @@ OTA_Message*  recvFromSocket(int socketfd, int flags)
 
 	type = header->type;
 	if( ( type != _MOBILE_TERMINATED_EVENT) && (type != _MOBILE_TERMINATED_ACK) &&
-			(type != _MOBILE_ORIGINATED_EVENT) && (type != _MOBILE_ORIGINATED_ACK))
+			(type != _MOBILE_ORIGINATED_EVENT) && (type != _MOBILE_ORIGINATED_ACK) && 
+			(type != _MOBILE_ORIGINATED_MAILBOX_REQ) && (type != _MOBILE_ORIGINATED_MAILBOX_ACK))
 	{
 
 		DieWithError("Not recognized  message type");
@@ -507,7 +602,6 @@ OTA_Message*  recvFromSocket(int socketfd, int flags)
 	p = new_OTA_Message(header->type);
 	memcpy(&(p->header), header, HEADER_SIZE);
 	free(header);
-
 
 	switch (p->type(p))
 	 {
@@ -534,6 +628,21 @@ OTA_Message*  recvFromSocket(int socketfd, int flags)
 
 	 case _MOBILE_TERMINATED_ACK:
 	 		break;
+
+	 case _MOBILE_ORIGINATED_MAILBOX_REQ:
+		  n = recv(socketfd, &objcnt, 1, flags);
+                  p->mb_command_count = objcnt;
+		  n = recv(socketfd, &objcnt, 1, flags);
+                  p->mb_command = objcnt; 
+		  n = recv(socketfd, &objcnt, 1, flags);
+                  p->mb_route_type = objcnt;
+                  break;
+ 
+                 
+	 case _MOBILE_ORIGINATED_MAILBOX_ACK:
+                  n = recv(socketfd, &objcnt, 1, flags);
+                  p->mb_mail_count = objcnt;
+                  break;
 
 	 	}
 
@@ -596,6 +705,20 @@ OTA_Message*  createMessageFromBytes(BYTE* bytes)
 	case _MOBILE_TERMINATED_ACK:
 		break;
 
+
+	case _MOBILE_ORIGINATED_MAILBOX_REQ:
+		p->mb_command_count = bytes[offset++];
+                if(p->mb_command_count > 0)
+		{
+			p->mb_command = bytes[offset++];
+  			p->mb_route_type = bytes[offset++];
+		}
+		break;
+
+	case _MOBILE_ORIGINATED_MAILBOX_ACK:
+		p->mb_mail_count = bytes[offset++];
+		break;
+
 	}
 
 	 crc = p->updateCRC(p);
@@ -636,8 +759,17 @@ int get_Msg_Size(OTA_Message* p) {
 	        			o = o->next;
 	        		}
 	        break;
-	    }
 
+	    case _MOBILE_ORIGINATED_MAILBOX_REQ:
+		size ++; 
+                if(p->mb_command_count != 0)
+			size = size + 2;
+		break;
+
+	    case _MOBILE_ORIGINATED_MAILBOX_ACK:
+		size ++;
+		break;
+	    }
 	    return size;
 
 }

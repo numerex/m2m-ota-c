@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <OTA_Def.h>
+#include <string.h>
 #ifndef EMBEDDED
 #include <time.h>
 #endif

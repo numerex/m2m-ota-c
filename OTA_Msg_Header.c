@@ -184,6 +184,12 @@ void print_header(Msg_Header* header)
 	case MOBILE_TERMINATED_ACK:
 		printf("MOBILE_TERMINATED_ACK");
 		break;
+	case MOBILE_ORIGINATED_MAILBOX_REQ:
+		printf("MOBILE_ORIGINATED_MAILBOX_REQ");
+		break;
+	case MOBILE_ORIGINATED_MAILBOX_ACK:
+		printf("MOBILE_ORIGINATED_MAILBOX_ACK");
+		break;
 	default:
 		printf("???");
 		break;

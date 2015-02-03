@@ -738,6 +738,19 @@ void testMailboxCommand ()
         m->setMTRoute(m, UDP); 
 	m->print(m);
 
+
+        log ("Adding object....");
+	OTA_Object* obj_int = new_OTA_Object(_OBJTYPE_INT, goid++);
+        obj_int->payload.obj_int.set(obj_int, 88888);        
+	OTA_Object* strobj = new_OTA_Object(_OBJTYPE_STRING, goid++);
+	char* msg = "HAPPY LABOR'S DAY!";
+	strobj->payload.obj_string.set(strobj, msg);
+
+
+        m->add_obj(m, obj_int);  
+	m->add_obj(m, strobj);
+	m->print(m);
+
 	log ("Print the bytes...");
         BYTEARRAY* q = m->getBytes(m);
         q->print(q);
@@ -747,9 +760,11 @@ void testMailboxCommand ()
         
 	 OTA_Message* p2 = createMessageFromBytes (q->data);
          p2->print(p2);
-
         q->Delete(q);
 }
+
+
+
 
 
 void testMailboxAck () 

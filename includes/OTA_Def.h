@@ -58,7 +58,7 @@
 #endif
 
 #ifndef		_MINOR_VERSION
-#define 	_MINOR_VERSION    		0x01
+#define 	_MINOR_VERSION    		0x02    // Adding mailbox request
 #endif
 
 #define 	__LITTLE_ENDIAN___   	1
